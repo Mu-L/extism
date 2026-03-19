@@ -16,12 +16,13 @@ fn run_thread(p: Pool, i: u64) -> std::thread::JoinHandle<()> {
 
 fn init(max_instances: usize) -> Pool {
     let data = include_bytes!("../../../wasm/code.wasm");
-    let plugin_builder =
-        extism::PluginBuilder::new(extism::Manifest::new([extism::Wasm::data(data)]))
-            .with_wasi(true);
     PoolBuilder::new()
         .with_max_instances(max_instances)
-        .build(move || plugin_builder.clone().build())
+        .build(move || {
+            extism::PluginBuilder::new(extism::Manifest::new([extism::Wasm::data(data)]))
+                .with_wasi(true)
+                .build()
+        })
 }
 
 #[test]
@@ -60,4 +61,36 @@ fn test_exists() -> Result<(), Error> {
     assert!(!pool.function_exists("not_existing", timeout)?);
     assert!(!pool.function_exists("not_existing", timeout)?);
     Ok(())
+}
+
+#[test]
+fn test_pool_with_captured_builder() {
+    let data = include_bytes!("../../../wasm/code.wasm");
+
+    // Try to capture a pre-built PluginBuilder
+    let builder = PluginBuilder::new(Manifest::new([Wasm::data(data)]))
+        .with_wasi(true)
+        .with_function(
+            "my_func",
+            [ValType::I64],
+            [ValType::I64],
+            UserData::new(String::from("hello")),
+            |_plugin: &mut CurrentPlugin,
+             inputs: &[Val],
+             outputs: &mut [Val],
+             _user_data: UserData<String>| {
+                outputs[0] = inputs[0].clone();
+                Ok(())
+            },
+        );
+
+    let pool = PoolBuilder::new()
+        .with_max_instances(2)
+        .build(move || builder.clone().build());
+
+    let handle = std::thread::spawn(move || {
+        pool.get(Duration::from_secs(1)).unwrap();
+    });
+
+    handle.join().unwrap();
 }

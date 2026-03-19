@@ -83,6 +83,9 @@ pub(crate) enum UserDataHandle {
     Rust(Arc<std::sync::Mutex<dyn std::any::Any>>),
 }
 
+unsafe impl Send for UserDataHandle {}
+unsafe impl Sync for UserDataHandle {}
+
 /// UserData is used to store additional data that gets passed into host function callbacks
 ///
 /// `UserData` is used to store `C` and `Rust` data from hosts. The Rust data in wrapped in an `Arc<Mutex<T>>` and can be accessed
